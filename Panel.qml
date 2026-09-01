@@ -213,7 +213,9 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(360))
-    contentHeight: panel.fittedContentHeight(contentColumn.implicitHeight)
+    // The extra popupPadding doubles the negative space under the last
+    // section relative to the panel's uniform inner padding.
+    contentHeight: panel.fittedContentHeight(contentColumn.implicitHeight + Style.spacing.popupPadding)
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -380,6 +382,7 @@ Panel {
                 readonly property real wiggleRange: 0.1 + wiggleSeed * 0.08
                 readonly property int wiggleBeat: Math.round(11 + wiggleSeed * 7)
                 property real wiggleX: 0
+                property real wiggleY: 0
 
                 Timer {
                   running: root.reorderMode && !row.editing
@@ -387,13 +390,17 @@ Panel {
                   repeat: true
                   triggeredOnStart: true
                   onTriggered: {
+                    // Independent random X and Y each beat: sometimes purely
+                    // horizontal, sometimes vertical, often diagonal.
                     row.rotation = (Math.random() * 2 - 1) * row.wiggleRange
                     row.wiggleX = (Math.random() * 2 - 1) * 1.2
+                    row.wiggleY = (Math.random() * 2 - 1) * 1.2
                   }
                   onRunningChanged: {
                     if (!running) {
                       row.rotation = 0
                       row.wiggleX = 0
+                      row.wiggleY = 0
                     }
                   }
                 }
@@ -406,6 +413,10 @@ Panel {
                   NumberAnimation { duration: row.wiggleBeat; easing.type: Easing.InOutQuad }
                 }
 
+                Behavior on wiggleY {
+                  NumberAnimation { duration: row.wiggleBeat; easing.type: Easing.InOutQuad }
+                }
+
                 Rectangle {
                   visible: !row.editing
                   anchors.fill: parent
@@ -414,7 +425,7 @@ Panel {
                   // Translate, not y: the rows Column owns y, but transforms
                   // apply after layout, so the dragged row can follow the
                   // pointer without fighting the positioner.
-                  transform: Translate { x: row.wiggleX; y: row.dragOffset }
+                  transform: Translate { x: row.wiggleX; y: row.dragOffset + row.wiggleY }
 
                   // Leading glyph, mirroring the bluetooth panel's device
                   // icon placement (leftmost, heading size, dimmed idle).
