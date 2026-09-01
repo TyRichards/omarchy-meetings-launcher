@@ -373,21 +373,37 @@ Panel {
                   }
                 }
 
-                // Early-iOS home-screen wiggle while reordering: fast and
-                // subtle, with per-row randomized phase, speed, and range so
-                // the rows don't march in lockstep.
+                // Reorder-mode wiggle: each beat picks a fresh random tilt
+                // and a small side-to-side offset instead of rocking on a
+                // fixed cycle, so every row jitters on its own pattern.
                 readonly property real wiggleSeed: Math.random()
-                readonly property real wiggleRange: 0.35 + wiggleSeed * 0.25
-                readonly property int wiggleBeat: Math.round(45 + wiggleSeed * 25)
+                readonly property real wiggleRange: 0.1 + wiggleSeed * 0.08
+                readonly property int wiggleBeat: Math.round(11 + wiggleSeed * 7)
+                property real wiggleX: 0
 
-                SequentialAnimation on rotation {
+                Timer {
                   running: root.reorderMode && !row.editing
-                  loops: Animation.Infinite
-                  PauseAnimation { duration: Math.round(row.wiggleSeed * 90) }
-                  NumberAnimation { to: row.wiggleRange; duration: row.wiggleBeat; easing.type: Easing.InOutQuad }
-                  NumberAnimation { to: -row.wiggleRange; duration: row.wiggleBeat * 2; easing.type: Easing.InOutQuad }
-                  NumberAnimation { to: 0; duration: row.wiggleBeat; easing.type: Easing.InOutQuad }
-                  onStopped: row.rotation = 0
+                  interval: row.wiggleBeat
+                  repeat: true
+                  triggeredOnStart: true
+                  onTriggered: {
+                    row.rotation = (Math.random() * 2 - 1) * row.wiggleRange
+                    row.wiggleX = (Math.random() * 2 - 1) * 1.2
+                  }
+                  onRunningChanged: {
+                    if (!running) {
+                      row.rotation = 0
+                      row.wiggleX = 0
+                    }
+                  }
+                }
+
+                Behavior on rotation {
+                  NumberAnimation { duration: row.wiggleBeat; easing.type: Easing.InOutQuad }
+                }
+
+                Behavior on wiggleX {
+                  NumberAnimation { duration: row.wiggleBeat; easing.type: Easing.InOutQuad }
                 }
 
                 Rectangle {
@@ -398,7 +414,7 @@ Panel {
                   // Translate, not y: the rows Column owns y, but transforms
                   // apply after layout, so the dragged row can follow the
                   // pointer without fighting the positioner.
-                  transform: Translate { y: row.dragOffset }
+                  transform: Translate { x: row.wiggleX; y: row.dragOffset }
 
                   // Leading glyph, mirroring the bluetooth panel's device
                   // icon placement (leftmost, heading size, dimmed idle).
