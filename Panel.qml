@@ -378,6 +378,10 @@ Panel {
                 }
 
                 Behavior on reorderShift {
+                  // Animate only while a drag is live; when the model commit
+                  // rebuilds the rows, they must land at 0 instantly rather
+                  // than glide out of an overlap.
+                  enabled: root.dragFrom >= 0
                   NumberAnimation { duration: 130; easing.type: Easing.OutQuad }
                 }
 
@@ -550,15 +554,21 @@ Panel {
 
                   onReleased: {
                     if (!root.reorderMode) return
-                    if (row.dragging) {
-                      if (root.dragTo >= 0) root.moveMeeting(row.index, root.dragTo)
-                    } else {
-                      root.startEdit(row.index)
-                    }
+                    var wasDragging = row.dragging
+                    var from = row.index
+                    var to = root.dragTo
+                    // Clear drag state BEFORE committing: the model change
+                    // rebuilds every delegate, and any still-set dragFrom/
+                    // dragTo would spawn the new rows pre-shifted.
                     root.dragFrom = -1
                     root.dragTo = -1
                     row.dragOffset = 0
                     row.dragging = false
+                    if (wasDragging) {
+                      if (to >= 0) root.moveMeeting(from, to)
+                    } else {
+                      root.startEdit(from)
+                    }
                   }
 
                   onClicked: if (!root.reorderMode) root.openMeeting(row.index)
