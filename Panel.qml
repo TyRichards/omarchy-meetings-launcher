@@ -23,8 +23,9 @@ Panel {
   readonly property string configPath: Quickshell.env("HOME") + "/.config/omarchy/meetings.json"
   readonly property bool zoomWebClient: setting("zoomWebClient", true) !== false
 
-  // Rotating hero subheading, in the spirit of the tailscale panel's
-  // active phrases.
+  // Hero subheading, in the spirit of the tailscale panel's active
+  // phrases. A random one is drawn per open and holds until the panel
+  // closes.
   readonly property var claudisms: [
     "THIS COULD HAVE BEEN AN EMAIL",
     "CIRCLING BACK IN REAL TIME",
@@ -173,29 +174,6 @@ Panel {
     urlField.text = ""
     addOpen = false
     keyCatcher.forceActiveFocus()
-  }
-
-  // Same fade-swap treatment the network panel gives its hero phrases.
-  SequentialAnimation {
-    id: phraseSwap
-    PropertyAnimation {
-      target: heroPhrase; property: "opacity"
-      to: 0.0; duration: 180; easing.type: Easing.OutQuad
-    }
-    ScriptAction {
-      script: root.phraseIndex = (root.phraseIndex + 1) % root.claudisms.length
-    }
-    PropertyAnimation {
-      target: heroPhrase; property: "opacity"
-      to: 1.0; duration: 260; easing.type: Easing.InQuad
-    }
-  }
-
-  Timer {
-    interval: 5000
-    repeat: true
-    running: root.opened
-    onTriggered: phraseSwap.restart()
   }
 
   FileView {
