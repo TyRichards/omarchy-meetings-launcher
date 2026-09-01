@@ -613,6 +613,12 @@ Panel {
             spacing: Style.space(6)
             visible: root.addOpen
 
+            PanelSectionHeader {
+              text: "ADD NEW MEETING"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+            }
+
             TextField {
               id: nameField
               width: parent.width
@@ -635,6 +641,7 @@ Panel {
               spacing: Style.space(6)
 
               Button {
+                iconText: "󰐕"
                 text: "Add"
                 bordered: true
                 foreground: root.contentForeground
