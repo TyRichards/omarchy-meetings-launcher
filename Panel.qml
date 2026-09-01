@@ -27,16 +27,14 @@ Panel {
   // phrases. A random one is drawn per open and holds until the panel
   // closes.
   readonly property var claudisms: [
-    "THIS COULD HAVE BEEN AN EMAIL",
-    "CIRCLING BACK IN REAL TIME",
+    "COULD'VE BEEN AN EMAIL",
+    "CIRCLING BACK",
     "ALIGNING THE STAKEHOLDERS",
-    "TOUCHING BASE, PROFESSIONALLY",
-    "SYNERGY LOADING…",
+    "SYNERGY IN PROGRESS",
     "CAMERA ON, SOUL OFF",
-    "YOU'RE STILL ON MUTE",
-    "LET'S TAKE THAT OFFLINE",
-    "HARD STOP AT THE TOP OF THE HOUR",
-    "MOVING THE NEEDLE TOGETHER"
+    "YOU'RE STILL ON MUTE?",
+    "HARD STOP AT...",
+    "MOVING THE NEEDLE"
   ]
   property int phraseIndex: 0
 
