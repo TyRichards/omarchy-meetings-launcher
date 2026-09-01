@@ -28,6 +28,7 @@ Panel {
   property bool addOpen: false
   property bool cursorActive: false
   property int cursorIndex: 0
+  property int editingIndex: -1
 
   function open() {
     root.controller.show()
@@ -37,6 +38,7 @@ Panel {
     root.cursorActive = false
     root.addOpen = false
     root.editMode = false
+    root.editingIndex = -1
     root.controller.hide()
   }
 
@@ -73,7 +75,33 @@ Panel {
     return true
   }
 
+  function updateMeeting(index, name, url) {
+    url = String(url || "").trim()
+    if (index < 0 || index >= meetings.length || !Model.isValidUrl(url)) return false
+    var next = meetings.slice()
+    next[index] = {
+      name: String(name || "").trim() || Model.hostOf(url),
+      url: url
+    }
+    saveMeetings(next)
+    editingIndex = -1
+    keyCatcher.forceActiveFocus()
+    return true
+  }
+
+  function startEdit(index) {
+    addOpen = false
+    editingIndex = index
+  }
+
+  function cancelEdit() {
+    editingIndex = -1
+    keyCatcher.forceActiveFocus()
+  }
+
   function removeMeeting(index) {
+    if (index === editingIndex) editingIndex = -1
+    else if (editingIndex > index) editingIndex--
     if (index < 0 || index >= meetings.length) return
     var next = meetings.slice()
     next.splice(index, 1)
@@ -103,6 +131,7 @@ Panel {
   }
 
   function openAddForm() {
+    editingIndex = -1
     addOpen = true
     Qt.callLater(function() { nameField.forceActiveFocus() })
   }
@@ -142,6 +171,10 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): void { meetingsFile.reload() }
+    function edit(index: int): void {
+      root.open()
+      root.startEdit(index)
+    }
   }
 
   KeyboardPanel {
@@ -157,7 +190,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: nameField.activeFocus || urlField.activeFocus
+      blocked: nameField.activeFocus || urlField.activeFocus || root.editingIndex >= 0
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onMoveRequested: function(dx, dy) { root.moveCursor(dy) }
@@ -181,31 +214,34 @@ Panel {
         Column {
           id: contentColumn
           width: listScroll.width
-          spacing: Style.space(10)
+          spacing: Style.space(14)
 
-          // ---------- Header ----------
+          // ---------- Hero: meetings icon · title + count · actions ----------
+          // Mirrors the Bluetooth panel's hero rhythm and the network panel's
+          // hero action buttons.
           Item {
             width: parent.width
-            implicitHeight: Math.max(headerLabels.implicitHeight, headerActions.implicitHeight)
+            implicitHeight: Math.max(headerIcon.implicitHeight, headerLabels.implicitHeight, headerActions.implicitHeight)
 
             Text {
               id: headerIcon
+              textFormat: Text.PlainText
               anchors.left: parent.left
               anchors.verticalCenter: parent.verticalCenter
               text: "󰕧"
               color: root.contentForeground
               font.family: root.contentFontFamily
-              font.pixelSize: Style.font.title
+              font.pixelSize: Style.font.display
             }
 
             Column {
               id: headerLabels
               anchors.left: headerIcon.right
-              anchors.leftMargin: Style.space(10)
-              anchors.right: headerActions.left
-              anchors.rightMargin: Style.space(10)
+              anchors.leftMargin: Style.space(14)
+              anchors.right: parent.right
+              anchors.rightMargin: headerActions.width > 0 ? headerActions.width + Style.space(12) : 0
               anchors.verticalCenter: parent.verticalCenter
-              spacing: Style.space(1)
+              spacing: Style.space(2)
 
               Text {
                 width: parent.width
@@ -222,10 +258,12 @@ Panel {
                 text: root.meetings.length === 1
                   ? "1 LINK"
                   : root.meetings.length + " LINKS"
-                color: root.dimForeground
+                color: Qt.darker(root.contentForeground, 1.4)
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.caption
+                font.bold: true
                 font.letterSpacing: 1.2
+                elide: Text.ElideRight
               }
             }
 
@@ -233,19 +271,31 @@ Panel {
               id: headerActions
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
-              spacing: Style.space(4)
+              spacing: Style.space(8)
 
-              GlyphButton {
-                glyph: "󰐕"
-                hint: "Add a meeting link (a)"
+              Button {
+                iconText: "󰐕"
+                tooltipText: "Add a meeting link (a)"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                iconSize: Style.font.subtitle * 1.5
+                horizontalPadding: Style.space(5)
+                verticalPadding: Style.space(2)
                 active: root.addOpen
+                anchors.verticalCenter: parent.verticalCenter
                 onClicked: root.addOpen ? root.cancelAddForm() : root.openAddForm()
               }
 
-              GlyphButton {
-                glyph: "󰏫"
-                hint: "Edit list (e)"
+              Button {
+                iconText: "󰏫"
+                tooltipText: "Edit list (e)"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                iconSize: Style.font.subtitle * 1.5
+                horizontalPadding: Style.space(5)
+                verticalPadding: Style.space(2)
                 active: root.editMode
+                anchors.verticalCenter: parent.verticalCenter
                 onClicked: root.editMode = !root.editMode
               }
             }
@@ -264,89 +314,161 @@ Panel {
             Repeater {
               model: root.meetings
 
-              Rectangle {
+              Item {
                 id: row
                 required property var modelData
                 required property int index
 
-                readonly property bool hasCursor: root.cursorActive && root.cursorIndex === index
+                readonly property bool editing: root.editingIndex === index
+                readonly property bool hasCursor: root.cursorActive && root.cursorIndex === index && !editing
                 readonly property bool hot: rowMouse.containsMouse || hasCursor
 
                 width: parent.width
-                implicitHeight: Style.space(46)
-                radius: Style.cornerRadius
-                color: hot ? Style.hoverFillFor(root.contentForeground, Color.accent) : "transparent"
+                implicitHeight: editing ? rowEditor.implicitHeight + Style.space(8) : Style.space(46)
 
-                MouseArea {
-                  id: rowMouse
+                onEditingChanged: {
+                  if (editing) {
+                    editName.text = modelData.name
+                    editUrl.text = modelData.url
+                    Qt.callLater(function() {
+                      editName.forceActiveFocus()
+                      editName.selectAll()
+                    })
+                  }
+                }
+
+                Rectangle {
+                  visible: !row.editing
                   anchors.fill: parent
-                  hoverEnabled: true
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: root.openMeeting(row.index)
-                }
+                  radius: Style.cornerRadius
+                  color: row.hot ? Style.hoverFillFor(root.contentForeground, Color.accent) : "transparent"
 
-                Column {
-                  anchors.left: parent.left
-                  anchors.leftMargin: Style.space(10)
-                  anchors.right: rowTrailing.left
-                  anchors.rightMargin: Style.space(10)
-                  anchors.verticalCenter: parent.verticalCenter
-                  spacing: Style.space(1)
-
-                  Text {
-                    width: parent.width
-                    text: row.modelData.name
-                    color: root.contentForeground
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.body
-                    font.bold: true
-                    elide: Text.ElideRight
+                  MouseArea {
+                    id: rowMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.editMode ? root.startEdit(row.index) : root.openMeeting(row.index)
                   }
 
-                  Text {
-                    width: parent.width
-                    text: Model.hostOf(row.modelData.url)
-                    color: root.dimForeground
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.caption
-                    elide: Text.ElideMiddle
-                  }
-                }
-
-                Row {
-                  id: rowTrailing
-                  anchors.right: parent.right
-                  anchors.rightMargin: Style.space(8)
-                  anchors.verticalCenter: parent.verticalCenter
-                  spacing: Style.space(6)
-
-                  Rectangle {
+                  Column {
+                    anchors.left: parent.left
+                    anchors.leftMargin: Style.space(10)
+                    anchors.right: rowTrailing.left
+                    anchors.rightMargin: Style.space(10)
                     anchors.verticalCenter: parent.verticalCenter
-                    implicitWidth: chipText.implicitWidth + Style.space(14)
-                    implicitHeight: Style.space(20)
-                    radius: Style.cornerRadius > 0 ? implicitHeight / 2 : 0
-                    color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.06)
-                    border.width: Style.spacing.hairline
-                    border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
+                    spacing: Style.space(1)
 
                     Text {
-                      id: chipText
-                      anchors.centerIn: parent
-                      text: Model.providerLabel(row.modelData.url)
+                      width: parent.width
+                      text: row.modelData.name
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                      elide: Text.ElideRight
+                    }
+
+                    Text {
+                      width: parent.width
+                      text: Model.hostOf(row.modelData.url)
                       color: root.dimForeground
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.caption
-                      font.bold: true
+                      elide: Text.ElideMiddle
                     }
                   }
 
-                  GlyphButton {
-                    visible: root.editMode
+                  Row {
+                    id: rowTrailing
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.space(8)
                     anchors.verticalCenter: parent.verticalCenter
-                    glyph: "󰅖"
-                    hint: "Remove"
-                    danger: true
-                    onClicked: root.removeMeeting(row.index)
+                    spacing: Style.space(6)
+
+                    Rectangle {
+                      anchors.verticalCenter: parent.verticalCenter
+                      implicitWidth: chipText.implicitWidth + Style.space(14)
+                      implicitHeight: Style.space(20)
+                      radius: Style.cornerRadius > 0 ? implicitHeight / 2 : 0
+                      color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.06)
+                      border.width: Style.spacing.hairline
+                      border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
+
+                      Text {
+                        id: chipText
+                        anchors.centerIn: parent
+                        text: Model.providerLabel(row.modelData.url)
+                        color: root.dimForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                      }
+                    }
+
+                    GlyphButton {
+                      id: rowEditBtn
+                      visible: root.editMode || rowMouse.containsMouse || rowEditBtn.hovering
+                      anchors.verticalCenter: parent.verticalCenter
+                      glyph: "󰏫"
+                      hint: "Edit"
+                      onClicked: root.startEdit(row.index)
+                    }
+
+                    GlyphButton {
+                      visible: root.editMode
+                      anchors.verticalCenter: parent.verticalCenter
+                      glyph: "󰅖"
+                      hint: "Remove"
+                      danger: true
+                      onClicked: root.removeMeeting(row.index)
+                    }
+                  }
+                }
+
+                Column {
+                  id: rowEditor
+                  visible: row.editing
+                  anchors.left: parent.left
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(6)
+
+                  TextField {
+                    id: editName
+                    width: parent.width
+                    foreground: root.contentForeground
+                    placeholderText: "Name"
+                    onAccepted: editUrl.forceActiveFocus()
+                    Keys.onEscapePressed: root.cancelEdit()
+                  }
+
+                  TextField {
+                    id: editUrl
+                    width: parent.width
+                    foreground: root.contentForeground
+                    placeholderText: "https://…"
+                    onAccepted: root.updateMeeting(row.index, editName.text, editUrl.text)
+                    Keys.onEscapePressed: root.cancelEdit()
+                  }
+
+                  Row {
+                    spacing: Style.space(6)
+
+                    Button {
+                      text: "Save"
+                      bordered: true
+                      foreground: root.contentForeground
+                      enabled: Model.isValidUrl(editUrl.text)
+                      opacity: enabled ? 1 : 0.4
+                      onClicked: root.updateMeeting(row.index, editName.text, editUrl.text)
+                    }
+
+                    Button {
+                      text: "Cancel"
+                      foreground: root.contentForeground
+                      onClicked: root.cancelEdit()
+                    }
                   }
                 }
               }
@@ -429,6 +551,7 @@ Panel {
     property string hint: ""
     property bool active: false
     property bool danger: false
+    readonly property bool hovering: glyphMouse.containsMouse
 
     signal clicked()
 
