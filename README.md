@@ -27,7 +27,7 @@ existing layout. No browser chrome, no floating window, no hunting for the tab.
 ## Install
 
 ```bash
-git clone https://github.com/TyRichards/omarchy-meetings \
+git clone https://github.com/TyRichards/omarchy-meetings-launcher \
   ~/.config/omarchy/plugins/io.github.tyrichards.meetings
 ```
 

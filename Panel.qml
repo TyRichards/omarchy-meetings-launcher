@@ -373,13 +373,20 @@ Panel {
                   }
                 }
 
-                // Early-iOS home-screen wiggle while reordering.
+                // Early-iOS home-screen wiggle while reordering: fast and
+                // subtle, with per-row randomized phase, speed, and range so
+                // the rows don't march in lockstep.
+                readonly property real wiggleSeed: Math.random()
+                readonly property real wiggleRange: 0.35 + wiggleSeed * 0.25
+                readonly property int wiggleBeat: Math.round(45 + wiggleSeed * 25)
+
                 SequentialAnimation on rotation {
                   running: root.reorderMode && !row.editing
                   loops: Animation.Infinite
-                  NumberAnimation { to: 1.2; duration: 90; easing.type: Easing.InOutQuad }
-                  NumberAnimation { to: -1.2; duration: 180; easing.type: Easing.InOutQuad }
-                  NumberAnimation { to: 0; duration: 90; easing.type: Easing.InOutQuad }
+                  PauseAnimation { duration: Math.round(row.wiggleSeed * 90) }
+                  NumberAnimation { to: row.wiggleRange; duration: row.wiggleBeat; easing.type: Easing.InOutQuad }
+                  NumberAnimation { to: -row.wiggleRange; duration: row.wiggleBeat * 2; easing.type: Easing.InOutQuad }
+                  NumberAnimation { to: 0; duration: row.wiggleBeat; easing.type: Easing.InOutQuad }
                   onStopped: row.rotation = 0
                 }
 
@@ -431,7 +438,7 @@ Panel {
                     anchors.right: parent.right
                     anchors.rightMargin: Style.space(10)
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.reorderMode ? "󰏫" : ""
+                    text: root.reorderMode ? "󰏫" : "󰁜"
                     color: Qt.darker(root.contentForeground, 1.4)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.subtitle
