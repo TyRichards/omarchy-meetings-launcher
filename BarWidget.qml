@@ -58,9 +58,6 @@ BarWidget {
     bar: root.bar
     text: ""
 
-    onPressed: function(b) {
-      if (b === Qt.RightButton && panelLoader.item) panelLoader.item.editConfigFile()
-      else root.togglePanel()
-    }
+    onPressed: root.togglePanel()
   }
 }

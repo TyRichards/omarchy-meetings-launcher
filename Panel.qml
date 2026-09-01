@@ -138,10 +138,6 @@ Panel {
     root.close()
   }
 
-  function editConfigFile() {
-    Quickshell.execDetached(["omarchy", "launch", "config", "editor", root.configPath])
-  }
-
   function moveCursor(dy) {
     if (meetings.length === 0) return
     if (!cursorActive) {
@@ -388,13 +384,27 @@ Panel {
                     elide: Text.ElideRight
                   }
 
+                  // Right-edge chevron, in the wifi panel's right-glyph
+                  // treatment (subtitle size, 1.4-darkened foreground).
+                  Text {
+                    id: rowChevron
+                    textFormat: Text.PlainText
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.space(10)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "󰁜"
+                    color: Qt.darker(root.contentForeground, 1.4)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.subtitle
+                  }
+
                   // Hover actions precede the chip in this right-anchored
                   // row, so they appear to the chip's left while the chip
                   // itself stays stationary.
                   Row {
                     id: rowTrailing
-                    anchors.right: parent.right
-                    anchors.rightMargin: Style.space(10)
+                    anchors.right: rowChevron.left
+                    anchors.rightMargin: Style.space(8)
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Style.space(6)
 

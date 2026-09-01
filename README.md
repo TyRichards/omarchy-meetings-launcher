@@ -22,7 +22,6 @@ existing layout. No browser chrome, no floating window, no hunting for the tab.
   they skip the "Open Zoom app" interstitial and join straight in the browser
 - Keyboard driven: `a` add · `e` edit the highlighted row · `j`/`k` or arrows
   to move · `Enter` to join · `Delete` to remove · `Esc` to close
-- Right-click the bar icon to open the config JSON in your editor
 - Config hot-reloads when the file changes on disk
 
 ## Install
