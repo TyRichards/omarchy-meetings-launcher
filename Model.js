@@ -46,6 +46,14 @@ function providerLabel(url) {
   return host || "Link"
 }
 
+// Scheme-less input ("meet.google.com/abc") gets https:// so any pasted
+// meeting address launches.
+function normalizeUrl(url) {
+  url = String(url || "").trim()
+  if (url !== "" && !/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) url = "https://" + url
+  return url
+}
+
 function isValidUrl(url) {
   return /^https?:\/\/[^\s/?#]+/.test(String(url || "").trim())
 }

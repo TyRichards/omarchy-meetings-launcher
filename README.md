@@ -15,6 +15,8 @@ existing layout. No browser chrome, no floating window, no hunting for the tab.
 - Add links inline (name + URL) or hand-edit the JSON
 - Hover a row for its pencil and ✕: edit the name and URL in place (the row
   swaps to inline fields) or remove the link
+- "Launch meeting" field at the bottom: paste any URL (scheme optional) and
+  launch it as a one-off tiled web app without saving it
 - Provider chips auto-detected from the URL (Zoom, Meet, RingCentral, Teams, …)
 - Zoom `/j/<id>` links are rewritten to the `app.zoom.us/wc/join` web client, so
   they skip the "Open Zoom app" interstitial and join straight in the browser

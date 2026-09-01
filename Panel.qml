@@ -114,6 +114,14 @@ Panel {
     root.close()
   }
 
+  function launchOneOff() {
+    var url = Model.normalizeUrl(oneOffField.text)
+    if (!Model.isValidUrl(url)) return
+    Quickshell.execDetached(["omarchy-launch-webapp", Model.launchUrl(url, root.zoomWebClient)])
+    oneOffField.text = ""
+    root.close()
+  }
+
   function editConfigFile() {
     Quickshell.execDetached(["omarchy", "launch", "config", "editor", root.configPath])
   }
@@ -188,7 +196,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: nameField.activeFocus || urlField.activeFocus || root.editingIndex >= 0
+      blocked: nameField.activeFocus || urlField.activeFocus || oneOffField.activeFocus || root.editingIndex >= 0
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onMoveRequested: function(dx, dy) { root.moveCursor(dy) }
@@ -309,7 +317,7 @@ Panel {
                 readonly property bool hot: rowMouse.containsMouse || hasCursor
 
                 width: parent.width
-                implicitHeight: editing ? rowEditor.implicitHeight + Style.space(8) : Style.space(46)
+                implicitHeight: editing ? rowEditor.implicitHeight + Style.space(8) : Style.space(36)
 
                 onEditingChanged: {
                   if (editing) {
@@ -336,32 +344,18 @@ Panel {
                     onClicked: root.openMeeting(row.index)
                   }
 
-                  Column {
+                  Text {
+                    textFormat: Text.PlainText
                     anchors.left: parent.left
                     anchors.leftMargin: Style.space(10)
                     anchors.right: rowTrailing.left
                     anchors.rightMargin: Style.space(10)
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: Style.space(1)
-
-                    Text {
-                      width: parent.width
-                      text: row.modelData.name
-                      color: root.contentForeground
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.body
-                      font.bold: true
-                      elide: Text.ElideRight
-                    }
-
-                    Text {
-                      width: parent.width
-                      text: Model.hostOf(row.modelData.url)
-                      color: root.dimForeground
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.caption
-                      elide: Text.ElideMiddle
-                    }
+                    text: row.modelData.name
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.body
+                    elide: Text.ElideRight
                   }
 
                   Row {
@@ -512,6 +506,51 @@ Panel {
                 text: "Cancel"
                 foreground: root.contentForeground
                 onClicked: root.cancelAddForm()
+              }
+            }
+          }
+
+          // ---------- One-off launcher ----------
+          PanelSeparator {
+            foreground: root.contentForeground
+          }
+
+          Column {
+            width: parent.width
+            spacing: Style.space(6)
+
+            PanelSectionHeader {
+              text: "LAUNCH MEETING"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+            }
+
+            Row {
+              width: parent.width
+              spacing: Style.space(6)
+
+              TextField {
+                id: oneOffField
+                width: parent.width - launchBtn.width - parent.spacing
+                anchors.verticalCenter: parent.verticalCenter
+                foreground: root.contentForeground
+                placeholderText: "One-off meeting url"
+                onAccepted: root.launchOneOff()
+                Keys.onEscapePressed: {
+                  oneOffField.text = ""
+                  keyCatcher.forceActiveFocus()
+                }
+              }
+
+              Button {
+                id: launchBtn
+                text: "Launch"
+                bordered: true
+                foreground: root.contentForeground
+                anchors.verticalCenter: parent.verticalCenter
+                enabled: Model.isValidUrl(Model.normalizeUrl(oneOffField.text))
+                opacity: enabled ? 1 : 0.4
+                onClicked: root.launchOneOff()
               }
             }
           }
