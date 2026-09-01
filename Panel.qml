@@ -24,7 +24,6 @@ Panel {
   readonly property bool zoomWebClient: setting("zoomWebClient", true) !== false
 
   property var meetings: []
-  property bool editMode: false
   property bool addOpen: false
   property bool cursorActive: false
   property int cursorIndex: 0
@@ -37,7 +36,6 @@ Panel {
   function close() {
     root.cursorActive = false
     root.addOpen = false
-    root.editMode = false
     root.editingIndex = -1
     root.controller.hide()
   }
@@ -199,7 +197,7 @@ Panel {
       onDeleteRequested: if (root.cursorActive) root.removeMeeting(root.cursorIndex)
       onTextKey: function(text) {
         if (text === "a") root.openAddForm()
-        else if (text === "e") root.editMode = !root.editMode
+        else if (text === "e" && root.cursorActive) root.startEdit(root.cursorIndex)
       }
 
       Flickable {
@@ -285,19 +283,6 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: root.addOpen ? root.cancelAddForm() : root.openAddForm()
               }
-
-              Button {
-                iconText: "󰏫"
-                tooltipText: "Edit list (e)"
-                foreground: root.contentForeground
-                fontFamily: root.contentFontFamily
-                iconSize: Style.font.subtitle * 1.5
-                horizontalPadding: Style.space(5)
-                verticalPadding: Style.space(2)
-                active: root.editMode
-                anchors.verticalCenter: parent.verticalCenter
-                onClicked: root.editMode = !root.editMode
-              }
             }
           }
 
@@ -348,7 +333,7 @@ Panel {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.editMode ? root.startEdit(row.index) : root.openMeeting(row.index)
+                    onClicked: root.openMeeting(row.index)
                   }
 
                   Column {
@@ -408,7 +393,7 @@ Panel {
 
                     GlyphButton {
                       id: rowEditBtn
-                      visible: root.editMode || rowMouse.containsMouse || rowEditBtn.hovering
+                      visible: rowMouse.containsMouse || rowEditBtn.hovering || rowDeleteBtn.hovering
                       anchors.verticalCenter: parent.verticalCenter
                       glyph: "󰏫"
                       hint: "Edit"
@@ -416,7 +401,8 @@ Panel {
                     }
 
                     GlyphButton {
-                      visible: root.editMode
+                      id: rowDeleteBtn
+                      visible: rowEditBtn.visible
                       anchors.verticalCenter: parent.verticalCenter
                       glyph: "󰅖"
                       hint: "Remove"
@@ -528,16 +514,6 @@ Panel {
                 onClicked: root.cancelAddForm()
               }
             }
-          }
-
-          // ---------- Footer hint ----------
-          Text {
-            width: parent.width
-            text: "Links open as tiled web-app windows · right-click the bar icon to edit the JSON"
-            color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.4)
-            font.family: root.contentFontFamily
-            font.pixelSize: Style.font.caption
-            wrapMode: Text.WordWrap
           }
         }
       }

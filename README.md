@@ -13,13 +13,13 @@ existing layout. No browser chrome, no floating window, no hunting for the tab.
 
 - 󰕧 bar icon with a popup panel listing your meeting links
 - Add links inline (name + URL) or hand-edit the JSON
-- Edit a link's name and URL in place: hover a row and hit its pencil (or
-  toggle edit mode and click the row) — the row swaps to inline fields
+- Hover a row for its pencil and ✕: edit the name and URL in place (the row
+  swaps to inline fields) or remove the link
 - Provider chips auto-detected from the URL (Zoom, Meet, RingCentral, Teams, …)
 - Zoom `/j/<id>` links are rewritten to the `app.zoom.us/wc/join` web client, so
   they skip the "Open Zoom app" interstitial and join straight in the browser
-- Keyboard driven: `a` add · `e` edit · `j`/`k` or arrows to move · `Enter` to
-  join · `Delete` to remove · `Esc` to close
+- Keyboard driven: `a` add · `e` edit the highlighted row · `j`/`k` or arrows
+  to move · `Enter` to join · `Delete` to remove · `Esc` to close
 - Right-click the bar icon to open the config JSON in your editor
 - Config hot-reloads when the file changes on disk
 
