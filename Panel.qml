@@ -344,9 +344,37 @@ Panel {
                     onClicked: root.openMeeting(row.index)
                   }
 
+                  // Hover actions live at the far left of the row; everything
+                  // to the right (title, chip, camera glyph) stays stationary.
+                  Row {
+                    id: rowActions
+                    visible: rowMouse.containsMouse || rowEditBtn.hovering || rowDeleteBtn.hovering
+                    anchors.left: parent.left
+                    anchors.leftMargin: Style.space(6)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(4)
+
+                    GlyphButton {
+                      id: rowEditBtn
+                      anchors.verticalCenter: parent.verticalCenter
+                      glyph: "󰏫"
+                      hint: "Edit"
+                      onClicked: root.startEdit(row.index)
+                    }
+
+                    GlyphButton {
+                      id: rowDeleteBtn
+                      anchors.verticalCenter: parent.verticalCenter
+                      glyph: "󰅖"
+                      hint: "Remove"
+                      danger: true
+                      onClicked: root.removeMeeting(row.index)
+                    }
+                  }
+
                   Text {
                     textFormat: Text.PlainText
-                    anchors.left: parent.left
+                    anchors.left: rowActions.visible ? rowActions.right : parent.left
                     anchors.leftMargin: Style.space(10)
                     anchors.right: rowTrailing.left
                     anchors.rightMargin: Style.space(10)
@@ -383,25 +411,6 @@ Panel {
                         font.pixelSize: Style.font.caption
                         font.bold: true
                       }
-                    }
-
-                    GlyphButton {
-                      id: rowEditBtn
-                      visible: rowMouse.containsMouse || rowEditBtn.hovering || rowDeleteBtn.hovering
-                      anchors.verticalCenter: parent.verticalCenter
-                      glyph: "󰏫"
-                      hint: "Edit"
-                      onClicked: root.startEdit(row.index)
-                    }
-
-                    GlyphButton {
-                      id: rowDeleteBtn
-                      visible: rowEditBtn.visible
-                      anchors.verticalCenter: parent.verticalCenter
-                      glyph: "󰅖"
-                      hint: "Remove"
-                      danger: true
-                      onClicked: root.removeMeeting(row.index)
                     }
                   }
 
