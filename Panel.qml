@@ -23,6 +23,22 @@ Panel {
   readonly property string configPath: Quickshell.env("HOME") + "/.config/omarchy/meetings.json"
   readonly property bool zoomWebClient: setting("zoomWebClient", true) !== false
 
+  // Rotating hero subheading, in the spirit of the tailscale panel's
+  // active phrases.
+  readonly property var claudisms: [
+    "THIS COULD HAVE BEEN AN EMAIL",
+    "CIRCLING BACK IN REAL TIME",
+    "ALIGNING THE STAKEHOLDERS",
+    "TOUCHING BASE, PROFESSIONALLY",
+    "SYNERGY LOADING…",
+    "CAMERA ON, SOUL OFF",
+    "YOU'RE STILL ON MUTE",
+    "LET'S TAKE THAT OFFLINE",
+    "HARD STOP AT THE TOP OF THE HOUR",
+    "MOVING THE NEEDLE TOGETHER"
+  ]
+  property int phraseIndex: 0
+
   property var meetings: []
   property bool addOpen: false
   property bool cursorActive: false
@@ -30,6 +46,7 @@ Panel {
   property int editingIndex: -1
 
   function open() {
+    phraseIndex = Math.floor(Math.random() * claudisms.length)
     root.controller.show()
   }
 
@@ -158,6 +175,29 @@ Panel {
     keyCatcher.forceActiveFocus()
   }
 
+  // Same fade-swap treatment the network panel gives its hero phrases.
+  SequentialAnimation {
+    id: phraseSwap
+    PropertyAnimation {
+      target: heroPhrase; property: "opacity"
+      to: 0.0; duration: 180; easing.type: Easing.OutQuad
+    }
+    ScriptAction {
+      script: root.phraseIndex = (root.phraseIndex + 1) % root.claudisms.length
+    }
+    PropertyAnimation {
+      target: heroPhrase; property: "opacity"
+      to: 1.0; duration: 260; easing.type: Easing.InQuad
+    }
+  }
+
+  Timer {
+    interval: 5000
+    repeat: true
+    running: root.opened
+    onTriggered: phraseSwap.restart()
+  }
+
   FileView {
     id: meetingsFile
     path: root.configPath
@@ -260,10 +300,10 @@ Panel {
               }
 
               Text {
+                id: heroPhrase
+                textFormat: Text.PlainText
                 width: parent.width
-                text: root.meetings.length === 1
-                  ? "1 LINK"
-                  : root.meetings.length + " LINKS"
+                text: root.claudisms[root.phraseIndex % root.claudisms.length]
                 color: Qt.darker(root.contentForeground, 1.4)
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.caption
