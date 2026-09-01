@@ -400,21 +400,11 @@ Panel {
 
                     GlyphButton {
                       id: rowEditBtn
-                      visible: rowMouse.containsMouse || rowEditBtn.hovering || rowDeleteBtn.hovering
+                      visible: rowMouse.containsMouse || rowEditBtn.hovering
                       anchors.verticalCenter: parent.verticalCenter
                       glyph: "󰏫"
                       hint: "Edit"
                       onClicked: root.startEdit(row.index)
-                    }
-
-                    GlyphButton {
-                      id: rowDeleteBtn
-                      visible: rowEditBtn.visible
-                      anchors.verticalCenter: parent.verticalCenter
-                      glyph: "󰅖"
-                      hint: "Remove"
-                      danger: true
-                      onClicked: root.removeMeeting(row.index)
                     }
 
                     Rectangle {
@@ -465,22 +455,41 @@ Panel {
                     Keys.onEscapePressed: root.cancelEdit()
                   }
 
-                  Row {
-                    spacing: Style.space(6)
+                  Item {
+                    width: parent.width
+                    implicitHeight: editFormButtons.implicitHeight
 
-                    Button {
-                      text: "Save"
-                      bordered: true
-                      foreground: root.contentForeground
-                      enabled: Model.isValidUrl(editUrl.text)
-                      opacity: enabled ? 1 : 0.4
-                      onClicked: root.updateMeeting(row.index, editName.text, editUrl.text)
+                    Row {
+                      id: editFormButtons
+                      anchors.left: parent.left
+                      spacing: Style.space(6)
+
+                      Button {
+                        text: "Save"
+                        bordered: true
+                        foreground: root.contentForeground
+                        enabled: Model.isValidUrl(editUrl.text)
+                        opacity: enabled ? 1 : 0.4
+                        onClicked: root.updateMeeting(row.index, editName.text, editUrl.text)
+                      }
+
+                      Button {
+                        text: "Cancel"
+                        foreground: root.contentForeground
+                        onClicked: root.cancelEdit()
+                      }
                     }
 
+                    // Destructive action alone at the right edge, with the
+                    // urgent hover treatment the row's ✕ used to carry.
                     Button {
-                      text: "Cancel"
+                      anchors.right: parent.right
+                      anchors.verticalCenter: editFormButtons.verticalCenter
+                      iconText: "󰅖"
+                      text: "Remove"
                       foreground: root.contentForeground
-                      onClicked: root.cancelEdit()
+                      accent: root.urgentColor
+                      onClicked: root.removeMeeting(row.index)
                     }
                   }
                 }
