@@ -546,9 +546,13 @@ Panel {
                     if (Math.abs(dy) > 6) row.dragging = true
                     if (row.dragging) {
                       row.dragOffset = dy
-                      root.dragFrom = row.index
                       var delta = Math.round(dy / row.reorderStep)
+                      // dragTo must be valid before dragFrom arms the shift
+                      // bindings: with the old order, one evaluation saw a
+                      // stale dragTo of -1 and every row below the dragged
+                      // one jumped aside at drag start.
                       root.dragTo = Math.max(0, Math.min(root.meetings.length - 1, row.index + delta))
+                      root.dragFrom = row.index
                     }
                   }
 
