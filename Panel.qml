@@ -360,37 +360,23 @@ Panel {
                     onClicked: root.openMeeting(row.index)
                   }
 
-                  // Hover actions live at the far left of the row; everything
-                  // to the right (title, chip, camera glyph) stays stationary.
-                  Row {
-                    id: rowActions
-                    visible: rowMouse.containsMouse || rowEditBtn.hovering || rowDeleteBtn.hovering
+                  // Leading glyph, mirroring the bluetooth panel's device
+                  // icon placement (leftmost, heading size, dimmed idle).
+                  Text {
+                    id: rowIcon
+                    textFormat: Text.PlainText
                     anchors.left: parent.left
-                    anchors.leftMargin: Style.space(6)
+                    anchors.leftMargin: Style.space(10)
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: Style.space(4)
-
-                    GlyphButton {
-                      id: rowEditBtn
-                      anchors.verticalCenter: parent.verticalCenter
-                      glyph: "󰏫"
-                      hint: "Edit"
-                      onClicked: root.startEdit(row.index)
-                    }
-
-                    GlyphButton {
-                      id: rowDeleteBtn
-                      anchors.verticalCenter: parent.verticalCenter
-                      glyph: "󰅖"
-                      hint: "Remove"
-                      danger: true
-                      onClicked: root.removeMeeting(row.index)
-                    }
+                    text: ""
+                    color: root.dimForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.heading
                   }
 
                   Text {
                     textFormat: Text.PlainText
-                    anchors.left: rowActions.visible ? rowActions.right : parent.left
+                    anchors.left: rowIcon.right
                     anchors.leftMargin: Style.space(10)
                     anchors.right: rowTrailing.left
                     anchors.rightMargin: Style.space(10)
@@ -402,12 +388,34 @@ Panel {
                     elide: Text.ElideRight
                   }
 
+                  // Hover actions precede the chip in this right-anchored
+                  // row, so they appear to the chip's left while the chip
+                  // itself stays stationary.
                   Row {
                     id: rowTrailing
-                    anchors.right: rowIcon.left
-                    anchors.rightMargin: Style.space(8)
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.space(10)
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Style.space(6)
+
+                    GlyphButton {
+                      id: rowEditBtn
+                      visible: rowMouse.containsMouse || rowEditBtn.hovering || rowDeleteBtn.hovering
+                      anchors.verticalCenter: parent.verticalCenter
+                      glyph: "󰏫"
+                      hint: "Edit"
+                      onClicked: root.startEdit(row.index)
+                    }
+
+                    GlyphButton {
+                      id: rowDeleteBtn
+                      visible: rowEditBtn.visible
+                      anchors.verticalCenter: parent.verticalCenter
+                      glyph: "󰅖"
+                      hint: "Remove"
+                      danger: true
+                      onClicked: root.removeMeeting(row.index)
+                    }
 
                     Rectangle {
                       anchors.verticalCenter: parent.verticalCenter
@@ -428,20 +436,6 @@ Panel {
                         font.bold: true
                       }
                     }
-                  }
-
-                  // Trailing glyph, mirroring the bluetooth panel's device
-                  // icon treatment (heading size, dimmed-foreground idle).
-                  Text {
-                    id: rowIcon
-                    textFormat: Text.PlainText
-                    anchors.right: parent.right
-                    anchors.rightMargin: Style.space(10)
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: ""
-                    color: root.dimForeground
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.heading
                   }
                 }
 
