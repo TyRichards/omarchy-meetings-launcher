@@ -41,6 +41,10 @@ Panel {
   property var meetings: []
   property bool addOpen: false
   property bool reorderMode: false
+  // Live drag state: the row being dragged and where it would land now,
+  // so the rows in between can step aside while the drag is in flight.
+  property int dragFrom: -1
+  property int dragTo: -1
   property bool cursorActive: false
   property int cursorIndex: 0
   property int editingIndex: -1
@@ -55,6 +59,8 @@ Panel {
     root.addOpen = false
     root.editingIndex = -1
     root.reorderMode = false
+    root.dragFrom = -1
+    root.dragTo = -1
     root.controller.hide()
   }
 
@@ -360,6 +366,21 @@ Panel {
                 property real dragOffset: 0
                 property bool dragging: false
 
+                readonly property real reorderStep: Style.space(36) + Style.space(2)
+                // Rows between the drag origin and its current landing slot
+                // step aside by one slot to open a gap for the drop.
+                // Not readonly: the Behavior needs write access to animate.
+                property real reorderShift: {
+                  if (root.dragFrom < 0 || root.dragFrom === index) return 0
+                  if (root.dragFrom < index && index <= root.dragTo) return -reorderStep
+                  if (root.dragTo <= index && index < root.dragFrom) return reorderStep
+                  return 0
+                }
+
+                Behavior on reorderShift {
+                  NumberAnimation { duration: 130; easing.type: Easing.OutQuad }
+                }
+
                 width: parent.width
                 implicitHeight: editing ? rowEditor.implicitHeight + Style.space(8) : Style.space(36)
                 z: dragging ? 10 : 0
@@ -425,7 +446,7 @@ Panel {
                   // Translate, not y: the rows Column owns y, but transforms
                   // apply after layout, so the dragged row can follow the
                   // pointer without fighting the positioner.
-                  transform: Translate { x: row.wiggleX; y: row.dragOffset + row.wiggleY }
+                  transform: Translate { x: row.wiggleX; y: row.dragOffset + row.wiggleY + row.reorderShift }
 
                   // Leading glyph, mirroring the bluetooth panel's device
                   // icon placement (leftmost, heading size, dimmed idle).
@@ -519,19 +540,23 @@ Panel {
                     if (!pressed || !root.reorderMode) return
                     var dy = mouse.y - row.pressY
                     if (Math.abs(dy) > 6) row.dragging = true
-                    if (row.dragging) row.dragOffset = dy
+                    if (row.dragging) {
+                      row.dragOffset = dy
+                      root.dragFrom = row.index
+                      var delta = Math.round(dy / row.reorderStep)
+                      root.dragTo = Math.max(0, Math.min(root.meetings.length - 1, row.index + delta))
+                    }
                   }
 
                   onReleased: {
                     if (!root.reorderMode) return
                     if (row.dragging) {
-                      var step = row.height + Style.space(2)
-                      var delta = Math.round(row.dragOffset / step)
-                      var target = Math.max(0, Math.min(root.meetings.length - 1, row.index + delta))
-                      root.moveMeeting(row.index, target)
+                      if (root.dragTo >= 0) root.moveMeeting(row.index, root.dragTo)
                     } else {
                       root.startEdit(row.index)
                     }
+                    root.dragFrom = -1
+                    root.dragTo = -1
                     row.dragOffset = 0
                     row.dragging = false
                   }
