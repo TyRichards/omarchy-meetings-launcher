@@ -234,7 +234,7 @@ Panel {
               textFormat: Text.PlainText
               anchors.left: parent.left
               anchors.verticalCenter: parent.verticalCenter
-              text: "󰕧"
+              text: ""
               color: root.contentForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.display
@@ -360,7 +360,7 @@ Panel {
 
                   Row {
                     id: rowTrailing
-                    anchors.right: parent.right
+                    anchors.right: rowIcon.left
                     anchors.rightMargin: Style.space(8)
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Style.space(6)
@@ -403,6 +403,20 @@ Panel {
                       danger: true
                       onClicked: root.removeMeeting(row.index)
                     }
+                  }
+
+                  // Trailing glyph, mirroring the bluetooth panel's device
+                  // icon treatment (heading size, dimmed-foreground idle).
+                  Text {
+                    id: rowIcon
+                    textFormat: Text.PlainText
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.space(10)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: ""
+                    color: root.dimForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.heading
                   }
                 }
 

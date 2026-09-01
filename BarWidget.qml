@@ -56,7 +56,7 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󰕧"
+    text: ""
 
     onPressed: function(b) {
       if (b === Qt.RightButton && panelLoader.item) panelLoader.item.editConfigFile()
