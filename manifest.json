@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.tyrichards.meetings",
+  "name": "Meetings",
+  "version": "1.0.0",
+  "author": "Ty Richards",
+  "license": "MIT",
+  "description": "Meeting-link launcher: bookmark Zoom, Google Meet, RingCentral, Teams, or any meeting URL and open it as a tiled Omarchy web app",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Meetings",
+    "description": "Bookmark meeting links and open them as tiled web apps",
+    "category": "Info",
+    "allowMultiple": false
+  }
+}
