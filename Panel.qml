@@ -40,6 +40,7 @@ Panel {
 
   property var meetings: []
   property bool addOpen: false
+  property bool reorderMode: false
   property bool cursorActive: false
   property int cursorIndex: 0
   property int editingIndex: -1
@@ -53,6 +54,7 @@ Panel {
     root.cursorActive = false
     root.addOpen = false
     root.editingIndex = -1
+    root.reorderMode = false
     root.controller.hide()
   }
 
@@ -111,6 +113,14 @@ Panel {
   function cancelEdit() {
     editingIndex = -1
     keyCatcher.forceActiveFocus()
+  }
+
+  function moveMeeting(from, to) {
+    if (from === to || from < 0 || to < 0 || from >= meetings.length || to >= meetings.length) return
+    var next = meetings.slice()
+    var entry = next.splice(from, 1)[0]
+    next.splice(to, 0, entry)
+    saveMeetings(next)
   }
 
   function removeMeeting(index) {
@@ -292,6 +302,22 @@ Panel {
               spacing: Style.space(8)
 
               Button {
+                iconText: "󰏫"
+                tooltipText: "Reorder & edit"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                iconSize: Style.font.subtitle * 1.5
+                horizontalPadding: Style.space(5)
+                verticalPadding: Style.space(2)
+                active: root.reorderMode
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: {
+                  root.reorderMode = !root.reorderMode
+                  if (root.reorderMode) root.cancelAddForm()
+                }
+              }
+
+              Button {
                 iconText: "󰐕"
                 tooltipText: "Add a meeting link (a)"
                 foreground: root.contentForeground
@@ -328,8 +354,13 @@ Panel {
                 readonly property bool hasCursor: root.cursorActive && root.cursorIndex === index && !editing
                 readonly property bool hot: rowMouse.containsMouse || hasCursor
 
+                property real pressY: 0
+                property real dragOffset: 0
+                property bool dragging: false
+
                 width: parent.width
                 implicitHeight: editing ? rowEditor.implicitHeight + Style.space(8) : Style.space(36)
+                z: dragging ? 10 : 0
 
                 onEditingChanged: {
                   if (editing) {
@@ -342,19 +373,25 @@ Panel {
                   }
                 }
 
+                // Early-iOS home-screen wiggle while reordering.
+                SequentialAnimation on rotation {
+                  running: root.reorderMode && !row.editing
+                  loops: Animation.Infinite
+                  NumberAnimation { to: 1.2; duration: 90; easing.type: Easing.InOutQuad }
+                  NumberAnimation { to: -1.2; duration: 180; easing.type: Easing.InOutQuad }
+                  NumberAnimation { to: 0; duration: 90; easing.type: Easing.InOutQuad }
+                  onStopped: row.rotation = 0
+                }
+
                 Rectangle {
                   visible: !row.editing
                   anchors.fill: parent
                   radius: Style.cornerRadius
                   color: row.hot ? Style.hoverFillFor(root.contentForeground, Color.accent) : "transparent"
-
-                  MouseArea {
-                    id: rowMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.openMeeting(row.index)
-                  }
+                  // Translate, not y: the rows Column owns y, but transforms
+                  // apply after layout, so the dragged row can follow the
+                  // pointer without fighting the positioner.
+                  transform: Translate { y: row.dragOffset }
 
                   // Leading glyph, mirroring the bluetooth panel's device
                   // icon placement (leftmost, heading size, dimmed idle).
@@ -384,38 +421,28 @@ Panel {
                     elide: Text.ElideRight
                   }
 
-                  // Right-edge chevron, in the wifi panel's right-glyph
+                  // Right-edge glyph, in the wifi panel's right-glyph
                   // treatment (subtitle size, 1.4-darkened foreground).
+                  // Swaps to a pencil while reordering: any click on the
+                  // row then opens its inline editor.
                   Text {
                     id: rowChevron
                     textFormat: Text.PlainText
                     anchors.right: parent.right
                     anchors.rightMargin: Style.space(10)
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "󰁜"
+                    text: root.reorderMode ? "󰏫" : ""
                     color: Qt.darker(root.contentForeground, 1.4)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.subtitle
                   }
 
-                  // Hover actions precede the chip in this right-anchored
-                  // row, so they appear to the chip's left while the chip
-                  // itself stays stationary.
                   Row {
                     id: rowTrailing
                     anchors.right: rowChevron.left
                     anchors.rightMargin: Style.space(8)
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Style.space(6)
-
-                    GlyphButton {
-                      id: rowEditBtn
-                      visible: rowMouse.containsMouse || rowEditBtn.hovering
-                      anchors.verticalCenter: parent.verticalCenter
-                      glyph: "󰏫"
-                      hint: "Edit"
-                      onClicked: root.startEdit(row.index)
-                    }
 
                     Rectangle {
                       anchors.verticalCenter: parent.verticalCenter
@@ -437,6 +464,45 @@ Panel {
                       }
                     }
                   }
+                }
+
+                MouseArea {
+                  id: rowMouse
+                  anchors.fill: parent
+                  enabled: !row.editing
+                  visible: enabled
+                  hoverEnabled: true
+                  preventStealing: true
+                  cursorShape: root.reorderMode ? Qt.OpenHandCursor : Qt.PointingHandCursor
+
+                  onPressed: function(mouse) {
+                    row.pressY = mouse.y
+                    row.dragOffset = 0
+                    row.dragging = false
+                  }
+
+                  onPositionChanged: function(mouse) {
+                    if (!pressed || !root.reorderMode) return
+                    var dy = mouse.y - row.pressY
+                    if (Math.abs(dy) > 6) row.dragging = true
+                    if (row.dragging) row.dragOffset = dy
+                  }
+
+                  onReleased: {
+                    if (!root.reorderMode) return
+                    if (row.dragging) {
+                      var step = row.height + Style.space(2)
+                      var delta = Math.round(row.dragOffset / step)
+                      var target = Math.max(0, Math.min(root.meetings.length - 1, row.index + delta))
+                      root.moveMeeting(row.index, target)
+                    } else {
+                      root.startEdit(row.index)
+                    }
+                    row.dragOffset = 0
+                    row.dragging = false
+                  }
+
+                  onClicked: if (!root.reorderMode) root.openMeeting(row.index)
                 }
 
                 Column {
