@@ -1,5 +1,7 @@
 # Omarchy Meetings
 
+![Omarchy Meetings launcher open from the shell bar](preview.png)
+
 A meeting-link launcher for the [Omarchy](https://omarchy.org) shell bar. It's a
 glorified bookmark manager for meeting URLs — Zoom, Google Meet, RingCentral,
 Microsoft Teams, Webex, Whereby, Jitsi, or anything else with an `https://` link —
