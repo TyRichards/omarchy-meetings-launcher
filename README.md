@@ -24,18 +24,41 @@ existing layout. No browser chrome, no floating window, no hunting for the tab.
   to move · `Enter` to join · `Delete` to remove · `Esc` to close
 - Config hot-reloads when the file changes on disk
 
+## Requirements
+
+- Omarchy Quattro
+- Omarchy's bundled `omarchy-launch-webapp` command and Chromium web-app setup
+
+There are no additional packages, background services, or privileged setup steps.
+
 ## Install
 
+Review the source, then install and enable the widget:
+
 ```bash
-git clone https://github.com/TyRichards/omarchy-meetings-launcher \
-  ~/.config/omarchy/plugins/io.github.tyrichards.meetings
+omarchy plugin add https://github.com/TyRichards/omarchy-meetings-launcher.git --enable
 ```
 
-Then add the widget to the bar in `~/.config/omarchy/shell.json`:
+Omarchy adds enabled bar widgets to the right section by default. Move it if desired:
 
-```json
-{ "id": "io.github.tyrichards.meetings" }
+```bash
+omarchy bar move io.github.tyrichards.meetings --section center
 ```
+
+## Update
+
+```bash
+omarchy plugin update io.github.tyrichards.meetings
+```
+
+## Remove
+
+```bash
+omarchy plugin remove io.github.tyrichards.meetings
+```
+
+Saved links remain in `~/.config/omarchy/meetings.json`. Remove that file separately
+if you also want to delete the plugin's data.
 
 ## Config
 
@@ -68,9 +91,24 @@ Inline settings on the bar entry in `shell.json`:
 
 ## Why the windows tile
 
-Omarchy launches web apps through `omarchy launch webapp`, and its default
-Hyprland rules tag chromium-based windows with `tile = true` — so meeting
+Omarchy launches web apps through `omarchy-launch-webapp`, and its default
+Hyprland rules tag Chromium-based windows with `tile = true` — so meeting
 windows behave like any other pane: tile, split, move to a workspace, fullscreen.
+
+## Security and data access
+
+Like every Omarchy plugin, Meetings runs unsandboxed inside `omarchy-shell` with
+your user permissions. It reads `~/.config/omarchy/meetings.json` and writes that
+file only when you explicitly add, edit, reorder, or remove a saved link. Opening
+a meeting runs `omarchy-launch-webapp` with the selected URL, which connects to
+the meeting provider in Chromium. The plugin does not use `sudo`, install
+packages, run a background service, or collect analytics.
+
+## Validate from source
+
+```bash
+omarchy plugin validate .
+```
 
 ## License
 
