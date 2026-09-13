@@ -20,18 +20,21 @@ existing layout. No browser chrome, no floating window, no hunting for the tab.
 - "Launch meeting" field at the bottom: paste any URL (scheme optional) and
   launch it as a one-off tiled web app without saving it
 - Provider chips auto-detected from the URL (Zoom, Meet, RingCentral, Teams, …)
+- Copy button beside every provider chip puts a shareable meeting URL on the clipboard
 - Zoom `/j/<id>` links are rewritten to the `app.zoom.us/wc/join` web client, so
   they skip the "Open Zoom app" interstitial and join straight in the browser
 - Keyboard driven: `a` add · `e` edit the highlighted row · `j`/`k` or arrows
   to move · `Enter` to join · `Delete` to remove · `Esc` to close
-- Config hot-reloads when the file changes on disk
+- Config hot-reloads within five seconds when the file changes on disk
+- HTTPS-only URL parsing rejects userinfo, control characters, and deceptive provider domains
 
 ## Requirements
 
 - Omarchy Quattro
-- Omarchy's bundled `omarchy-launch-webapp` command and Chromium web-app setup
+- Runtime tools included with Omarchy: `omarchy-launch-webapp`, `wl-copy`, `python3`, and GNU `timeout`
+- Omarchy's Chromium web-app setup
 
-There are no additional packages, background services, or privileged setup steps.
+There are no additional packages, background services, or elevated setup steps.
 
 ## Install
 
@@ -77,7 +80,17 @@ Links live in `~/.config/omarchy/meetings.json`:
 }
 ```
 
-Reorder by rearranging the array. The panel picks up edits immediately.
+Reorder by rearranging the array. The panel picks up valid edits within five
+seconds. The file must contain only `version` and `meetings`; it is capped at
+64 KiB and 100 entries. Names are capped at 120 characters and canonical HTTPS
+URLs at 4,096 characters. Invalid files are rejected rather than partially
+loaded.
+
+Meetings creates and maintains this file as an owner-only regular file (`0600`).
+Symlinks, special files, files owned by another user, and oversized files are
+rejected before their contents enter the shell. Writes use a private temporary
+file followed by an atomic replacement, preserving the prior file if saving
+fails.
 
 ### Settings
 
@@ -101,15 +114,24 @@ windows behave like any other pane: tile, split, move to a workspace, fullscreen
 
 Like every Omarchy plugin, Meetings runs unsandboxed inside `omarchy-shell` with
 your user permissions. It reads `~/.config/omarchy/meetings.json` and writes that
-file only when you explicitly add, edit, reorder, or remove a saved link. Opening
-a meeting runs `omarchy-launch-webapp` with the selected URL, which connects to
-the meeting provider in Chromium. The plugin does not use `sudo`, install
-packages, run a background service, or collect analytics.
+file only when you explicitly add, edit, reorder, or remove a saved link. Saved
+meeting URLs can contain reusable passwords or access tokens in their query
+strings, so the plugin keeps the file owner-only and you should still treat it
+as sensitive.
+
+Opening a meeting runs `omarchy-launch-webapp` with the canonical HTTPS URL,
+which connects to the meeting provider in Chromium. Copying a link runs
+`wl-copy`. Bounded configuration reads and atomic writes run through the bundled
+`bin/meetings-config` helper using `python3` under a `timeout` deadline. The
+plugin requests no elevated permissions, installs no packages, starts no
+background service, and collects no analytics.
 
 ## Validate from source
 
 ```bash
 omarchy plugin validate .
+node tests/model.test.js
+python3 -m unittest -v tests/config_helper_test.py
 ```
 
 ## License

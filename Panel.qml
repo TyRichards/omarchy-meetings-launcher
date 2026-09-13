@@ -21,7 +21,18 @@ Panel {
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property string configPath: Quickshell.env("HOME") + "/.config/omarchy/meetings.json"
+  readonly property string configHelper: decodeURIComponent(
+    String(Qt.resolvedUrl("bin/meetings-config")).replace(/^file:\/\//, ""))
   readonly property bool zoomWebClient: setting("zoomWebClient", true) !== false
+
+  property bool configLoaded: false
+  property bool saveBusy: false
+  property string configError: ""
+  property string configReadText: ""
+  property string configReadError: ""
+  property string lastLoadedText: ""
+  property string activeSave: ""
+  property var activeSaveMeetings: []
 
   // Hero subheading, in the spirit of the tailscale panel's active
   // phrases. A random one is drawn per open and holds until the panel
@@ -76,36 +87,60 @@ Panel {
   }
 
   function loadMeetings(raw) {
-    meetings = Model.parseMeetings(raw)
+    raw = String(raw || "")
+    if (configLoaded && raw === lastLoadedText) return true
+    var parsed = Model.parseConfig(raw)
+    if (!parsed.ok) {
+      configError = parsed.error
+      return false
+    }
+    meetings = parsed.meetings
+    lastLoadedText = raw
+    configLoaded = true
+    configError = ""
     if (cursorIndex >= meetings.length) cursorIndex = Math.max(0, meetings.length - 1)
-  }
-
-  function saveMeetings(next) {
-    meetings = next
-    meetingsFile.setText(Model.serialize(next))
-  }
-
-  function addMeeting(name, url) {
-    url = String(url || "").trim()
-    if (!Model.isValidUrl(url)) return false
-    var next = meetings.slice()
-    next.push({
-      name: String(name || "").trim() || Model.hostOf(url),
-      url: url
-    })
-    saveMeetings(next)
     return true
   }
 
-  function updateMeeting(index, name, url) {
-    url = String(url || "").trim()
-    if (index < 0 || index >= meetings.length || !Model.isValidUrl(url)) return false
-    var next = meetings.slice()
-    next[index] = {
-      name: String(name || "").trim() || Model.hostOf(url),
-      url: url
+  function requestConfigLoad() {
+    if (setupProc.running || loadProc.running || saveBusy) return
+    configReadText = ""
+    configReadError = ""
+    setupProc.running = true
+  }
+
+  function saveMeetings(next) {
+    if (saveBusy) return false
+    var serialized = Model.serialize(next)
+    if (serialized === "") {
+      configError = "Meeting data is invalid or exceeds its storage limit"
+      return false
     }
-    saveMeetings(next)
+    activeSave = serialized
+    activeSaveMeetings = next
+    saveBusy = true
+    saveProc.command = ["timeout", "15", "python3", configHelper, "write", configPath]
+    saveProc.stdinEnabled = true
+    saveProc.running = true
+    return true
+  }
+
+  function addMeeting(name, url) {
+    if (meetings.length >= Model.MAX_MEETINGS) return false
+    var meeting = Model.meetingFromInput(name, url)
+    if (!meeting) return false
+    var next = meetings.slice()
+    next.push(meeting)
+    return saveMeetings(next)
+  }
+
+  function updateMeeting(index, name, url) {
+    if (index < 0 || index >= meetings.length) return false
+    var meeting = Model.meetingFromInput(name, url)
+    if (!meeting) return false
+    var next = meetings.slice()
+    next[index] = meeting
+    if (!saveMeetings(next)) return false
     editingIndex = -1
     keyCatcher.forceActiveFocus()
     return true
@@ -142,14 +177,20 @@ Panel {
   function openMeeting(index) {
     var entry = meetings[index]
     if (!entry) return
-    Quickshell.execDetached(["omarchy-launch-webapp", Model.launchUrl(entry.url, root.zoomWebClient)])
+    Quickshell.execDetached(["omarchy-launch-webapp", Model.launchUrl(entry, root.zoomWebClient)])
     root.close()
   }
 
+  function copyMeetingLink(index) {
+    var entry = meetings[index]
+    if (!entry) return
+    Quickshell.execDetached(["wl-copy", "--", entry.url])
+  }
+
   function launchOneOff() {
-    var url = Model.normalizeUrl(oneOffField.text)
-    if (!Model.isValidUrl(url)) return
-    Quickshell.execDetached(["omarchy-launch-webapp", Model.launchUrl(url, root.zoomWebClient)])
+    var meeting = Model.meetingFromInput("", oneOffField.text)
+    if (!meeting) return
+    Quickshell.execDetached(["omarchy-launch-webapp", Model.launchUrl(meeting, root.zoomWebClient)])
     oneOffField.text = ""
     root.close()
   }
@@ -186,14 +227,76 @@ Panel {
     keyCatcher.forceActiveFocus()
   }
 
-  FileView {
-    id: meetingsFile
-    path: root.configPath
-    watchChanges: true
-    atomicWrites: true
-    printErrors: false
-    onLoaded: root.loadMeetings(text())
-    onLoadFailed: root.loadMeetings("")
+  // Secure config I/O is delegated to a bounded Python helper. FileView is not
+  // used here because it would materialize an unsafe or oversized file inside
+  // the persistent shell before its type, ownership, mode, and size are known.
+  Process {
+    id: setupProc
+    command: ["timeout", "15", "python3", root.configHelper, "setup", root.configPath]
+    onExited: function(code) {
+      if (code === 0) {
+        loadProc.running = true
+      } else {
+        root.configError = "Meeting config path could not be secured"
+      }
+    }
+  }
+
+  Process {
+    id: loadProc
+    command: ["timeout", "15", "python3", root.configHelper, "read", root.configPath]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.configReadText = String(text || "")
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.configReadError = String(text || "").slice(0, 240).trim()
+    }
+    onExited: function(code) {
+      if (code === 0) {
+        root.loadMeetings(root.configReadText)
+      } else if (code === 1) {
+        root.loadMeetings("")
+      } else {
+        root.configError = root.configReadError !== ""
+          ? root.configReadError
+          : "Meeting config could not be read safely"
+      }
+    }
+  }
+
+  Process {
+    id: saveProc
+    onStarted: {
+      saveProc.write(root.activeSave)
+      saveProc.stdinEnabled = false
+    }
+    onExited: function(code) {
+      root.saveBusy = false
+      if (code === 0) {
+        root.meetings = root.activeSaveMeetings
+        root.lastLoadedText = root.activeSave
+        root.configLoaded = true
+        root.configError = ""
+        if (root.cursorIndex >= root.meetings.length)
+          root.cursorIndex = Math.max(0, root.meetings.length - 1)
+      } else {
+        root.configError = "Meeting config could not be saved safely"
+      }
+      root.activeSave = ""
+      root.activeSaveMeetings = []
+    }
+  }
+
+  // Preserve hand-edit hot reload without trusting FileView: each refresh goes
+  // through the same no-follow, regular-file, owner/mode, and byte checks.
+  Timer {
+    interval: 5000
+    repeat: true
+    running: true
+    triggeredOnStart: true
+    onTriggered: root.requestConfigLoad()
   }
 
   IpcHandler {
@@ -204,7 +307,7 @@ Panel {
     function show(): void { root.open() }
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
-    function refresh(): void { meetingsFile.reload() }
+    function refresh(): void { root.requestConfigLoad() }
     function edit(index: int): void {
       root.open()
       root.startEdit(index)
@@ -445,6 +548,9 @@ Panel {
                 Rectangle {
                   visible: !row.editing
                   anchors.fill: parent
+                  // Keep the nested copy control above the row-wide MouseArea;
+                  // non-interactive visual children still pass clicks through.
+                  z: 1
                   radius: Style.cornerRadius
                   color: row.hot ? Style.hoverFillFor(root.contentForeground, Color.accent) : "transparent"
                   // Translate, not y: the rows Column owns y, but transforms
@@ -503,6 +609,13 @@ Panel {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Style.space(6)
 
+                    GlyphButton {
+                      anchors.verticalCenter: parent.verticalCenter
+                      glyph: "󰆏"
+                      hint: "Copy meeting link"
+                      onClicked: root.copyMeetingLink(row.index)
+                    }
+
                     Rectangle {
                       anchors.verticalCenter: parent.verticalCenter
                       implicitWidth: chipText.implicitWidth + Style.space(14)
@@ -515,7 +628,8 @@ Panel {
                       Text {
                         id: chipText
                         anchors.centerIn: parent
-                        text: Model.providerLabel(row.modelData.url)
+                        text: String(row.modelData.provider || "Link").slice(0, Model.MAX_LABEL_LENGTH)
+                        textFormat: Text.PlainText
                         color: root.dimForeground
                         font.family: root.contentFontFamily
                         font.pixelSize: Style.font.caption
@@ -591,6 +705,7 @@ Panel {
                     width: parent.width
                     foreground: root.contentForeground
                     placeholderText: "Name"
+                    maximumLength: Model.MAX_NAME_LENGTH
                     onAccepted: editUrl.forceActiveFocus()
                     Keys.onEscapePressed: root.cancelEdit()
                   }
@@ -600,6 +715,7 @@ Panel {
                     width: parent.width
                     foreground: root.contentForeground
                     placeholderText: "https://…"
+                    maximumLength: Model.MAX_URL_LENGTH
                     onAccepted: root.updateMeeting(row.index, editName.text, editUrl.text)
                     Keys.onEscapePressed: root.cancelEdit()
                   }
@@ -617,7 +733,7 @@ Panel {
                         text: "Save"
                         bordered: true
                         foreground: root.contentForeground
-                        enabled: Model.isValidUrl(editUrl.text)
+                        enabled: !root.saveBusy && Model.isValidUrl(editUrl.text)
                         opacity: enabled ? 1 : 0.4
                         onClicked: root.updateMeeting(row.index, editName.text, editUrl.text)
                       }
@@ -646,9 +762,20 @@ Panel {
             }
           }
 
+          Text {
+            visible: root.configError !== ""
+            width: parent.width
+            text: root.configError
+            textFormat: Text.PlainText
+            color: root.urgentColor
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.Wrap
+          }
+
           // ---------- Empty state ----------
           Text {
-            visible: root.meetings.length === 0 && !root.addOpen
+            visible: root.meetings.length === 0 && !root.addOpen && root.configError === ""
             width: parent.width
             text: "No meeting links yet. Add your Zoom, Meet, or RingCentral rooms and they'll open here as tiled web apps."
             color: root.dimForeground
@@ -674,6 +801,7 @@ Panel {
               width: parent.width
               foreground: root.contentForeground
               placeholderText: "Name (e.g. Daily Standup)"
+              maximumLength: Model.MAX_NAME_LENGTH
               onAccepted: urlField.forceActiveFocus()
               Keys.onEscapePressed: root.cancelAddForm()
             }
@@ -683,6 +811,7 @@ Panel {
               width: parent.width
               foreground: root.contentForeground
               placeholderText: "https://zoom.us/j/…"
+              maximumLength: Model.MAX_URL_LENGTH
               onAccepted: root.submitAddForm()
               Keys.onEscapePressed: root.cancelAddForm()
             }
@@ -695,7 +824,7 @@ Panel {
                 text: "Add"
                 bordered: true
                 foreground: root.contentForeground
-                enabled: Model.isValidUrl(urlField.text)
+                enabled: !root.saveBusy && root.meetings.length < Model.MAX_MEETINGS && Model.isValidUrl(urlField.text)
                 opacity: enabled ? 1 : 0.4
                 onClicked: root.submitAddForm()
               }
@@ -733,6 +862,7 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
                 foreground: root.contentForeground
                 placeholderText: "One-off meeting url"
+                maximumLength: Model.MAX_URL_LENGTH
                 onAccepted: root.launchOneOff()
                 Keys.onEscapePressed: {
                   oneOffField.text = ""
@@ -746,7 +876,7 @@ Panel {
                 bordered: true
                 foreground: root.contentForeground
                 anchors.verticalCenter: parent.verticalCenter
-                enabled: Model.isValidUrl(Model.normalizeUrl(oneOffField.text))
+                enabled: Model.isValidUrl(oneOffField.text)
                 opacity: enabled ? 1 : 0.4
                 onClicked: root.launchOneOff()
               }
