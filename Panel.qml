@@ -23,6 +23,8 @@ Panel {
   readonly property string configPath: Quickshell.env("HOME") + "/.config/omarchy/meetings.json"
   readonly property string configHelper: decodeURIComponent(
     String(Qt.resolvedUrl("bin/meetings-config")).replace(/^file:\/\//, ""))
+  readonly property string launchHelper: decodeURIComponent(
+    String(Qt.resolvedUrl("bin/meetings-launch")).replace(/^file:\/\//, ""))
   readonly property bool zoomWebClient: setting("zoomWebClient", true) !== false
 
   property bool configLoaded: false
@@ -33,6 +35,8 @@ Panel {
   property string lastLoadedText: ""
   property string activeSave: ""
   property var activeSaveMeetings: []
+  property string activeLaunch: ""
+  property string activeCopy: ""
 
   // Hero subheading, in the spirit of the tailscale panel's active
   // phrases. A random one is drawn per open and holds until the panel
@@ -174,23 +178,38 @@ Panel {
     if (cursorIndex >= next.length) cursorIndex = Math.max(0, next.length - 1)
   }
 
+  function startPrivateLaunch(meeting) {
+    if (!meeting || launchProc.running) return false
+    var url = Model.launchUrl(meeting, root.zoomWebClient)
+    // launchUrl is derived from the canonical meeting object. Require that it
+    // remains canonical before crossing the stdin-only helper boundary.
+    var parsed = Model.parseMeetingUrl(url)
+    if (!parsed || parsed.url !== url) return false
+    activeLaunch = url
+    launchProc.stdinEnabled = true
+    launchProc.running = true
+    return true
+  }
+
   function openMeeting(index) {
     var entry = meetings[index]
-    if (!entry) return
-    Quickshell.execDetached(["omarchy-launch-webapp", Model.launchUrl(entry, root.zoomWebClient)])
+    if (!entry || !startPrivateLaunch(entry)) return
     root.close()
   }
 
   function copyMeetingLink(index) {
     var entry = meetings[index]
-    if (!entry) return
-    Quickshell.execDetached(["wl-copy", "--", entry.url])
+    if (!entry || copyProc.running) return
+    var parsed = Model.parseMeetingUrl(entry.url)
+    if (!parsed || parsed.url !== entry.url) return
+    activeCopy = entry.url
+    copyProc.stdinEnabled = true
+    copyProc.running = true
   }
 
   function launchOneOff() {
     var meeting = Model.meetingFromInput("", oneOffField.text)
-    if (!meeting) return
-    Quickshell.execDetached(["omarchy-launch-webapp", Model.launchUrl(meeting, root.zoomWebClient)])
+    if (!meeting || !startPrivateLaunch(meeting)) return
     oneOffField.text = ""
     root.close()
   }
@@ -286,6 +305,39 @@ Panel {
       }
       root.activeSave = ""
       root.activeSaveMeetings = []
+    }
+  }
+
+  // Never place a credential-bearing meeting URL in Process.command. The fixed
+  // helper receives it through the private stdin pipe and gives
+  // omarchy-launch-webapp only a non-secret, owner-only redirect path.
+  Process {
+    id: launchProc
+    command: ["timeout", "15", root.launchHelper]
+    onStarted: {
+      launchProc.write(root.activeLaunch)
+      root.activeLaunch = ""
+      launchProc.stdinEnabled = false
+    }
+    onExited: function(code) {
+      root.activeLaunch = ""
+      if (code !== 0) root.configError = "Meeting could not be launched safely"
+    }
+  }
+
+  // wl-copy natively accepts clipboard content on stdin, so copying does not
+  // need to expose the meeting URL in its process arguments either.
+  Process {
+    id: copyProc
+    command: ["wl-copy", "--"]
+    onStarted: {
+      copyProc.write(root.activeCopy)
+      root.activeCopy = ""
+      copyProc.stdinEnabled = false
+    }
+    onExited: function(code) {
+      root.activeCopy = ""
+      if (code !== 0) root.configError = "Meeting link could not be copied safely"
     }
   }
 

@@ -27,6 +27,8 @@ existing layout. No browser chrome, no floating window, no hunting for the tab.
   to move · `Enter` to join · `Delete` to remove · `Esc` to close
 - Config hot-reloads within five seconds when the file changes on disk
 - HTTPS-only URL parsing rejects userinfo, control characters, and deceptive provider domains
+- Credential-bearing URLs cross the launcher boundary through a private stdin pipe,
+  never process arguments
 
 ## Requirements
 
@@ -119,19 +121,24 @@ meeting URLs can contain reusable passwords or access tokens in their query
 strings, so the plugin keeps the file owner-only and you should still treat it
 as sensitive.
 
-Opening a meeting runs `omarchy-launch-webapp` with the canonical HTTPS URL,
-which connects to the meeting provider in Chromium. Copying a link runs
-`wl-copy`. Bounded configuration reads and atomic writes run through the bundled
+Opening a meeting sends the canonical HTTPS URL over a private stdin pipe to
+the fixed `bin/meetings-launch` helper. The helper rechecks the URL, writes an
+owner-only (`0600`) redirect document inside a private (`0700`) runtime
+directory, and gives `omarchy-launch-webapp` only that non-secret file URL. The
+redirect is deleted as soon as Chromium opens it (or after a short deadline), so
+meeting tokens are never copied into process arguments, logs, or environment
+variables. Copying a link likewise sends it to a fixed `wl-copy --` process over
+stdin. Bounded configuration reads and atomic writes run through the bundled
 `bin/meetings-config` helper using `python3` under a `timeout` deadline. The
-plugin requests no elevated permissions, installs no packages, starts no
-background service, and collects no analytics.
+plugin requests no elevated permissions,
+installs no packages, starts no background service, and collects no analytics.
 
 ## Validate from source
 
 ```bash
 omarchy plugin validate .
 node tests/model.test.js
-python3 -m unittest -v tests/config_helper_test.py
+python3 -m unittest -v tests/config_helper_test.py tests/launch_helper_test.py
 ```
 
 ## License
